@@ -1,0 +1,24 @@
+doctype html
+html
+    head
+        title= title
+        link(rel='stylesheet', href='/stylesheets/style.css')
+
+        script(src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js")
+
+        script(type = "text/javascript").
+            $(document).on('click', '#but', function(){
+                var speed = $('#speed').val()
+                $.post("/",{ servo_pos: speed }, function(data, status){
+                    if (status != "success")
+                    {
+                        alert("Data: " + data + " status: "+status);
+                    }
+                });
+            });
+
+
+    body
+        button(id="but").
+            Set speed
+        input(id="speed")

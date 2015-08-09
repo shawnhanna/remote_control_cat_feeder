@@ -5,20 +5,231 @@ html
         link(rel='stylesheet', href='/stylesheets/style.css')
 
         script(src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js")
+        link(rel="stylesheet" href="/javascripts/jquery_ui/jquery-ui.css")
+  
+        script(src="/javascripts/jquery_ui/jquery-ui.js")
+        //- script(src="/javascript/ui/1.11.4/jquery-ui.js")
+        style
+            #webcam_image { width: 150px; height: 150px; padding: 0.5em; }
+            .ui-resizable-ghost { border: 1px dotted gray; }
+            .ui-resizable-helper { border: 2px dotted #00F; }
 
         script(type = "text/javascript").
-            $(document).on('click', '#but', function(){
-                var speed = $('#speed').val()
-                $.post("/",{ servo_pos: speed }, function(data, status){
-                    if (status != "success")
-                    {
-                        alert("Data: " + data + " status: "+status);
-                    }
-                });
+            var default_device_num = 0
+
+            var timeout_res = null
+            var zero_speed_offset = 94
+
+            $(function() {
+                $( "#webcam_image" ).resizable( { ghost: true
+                 //- helper: "ui-resizable-helper"
+                 });
             });
 
+            function stopTimer() {
+                console.log("stopping timer");
+                clearTimeout(timeout_res);
+                timeout_res = null
+                $("#start_img_button").attr("disabled", false);
+                $("#stop_img_button").attr("disabled", true);
+            }
+
+            function startTimer() {
+                if (timeout_res)
+                {
+                    console.log("Starting get image timer when they are already started")
+                }
+                else
+                {
+                    console.log("starting timer");
+                    timeout_res = setTimeout(getNewImage, 500);
+                    $("#start_img_button").attr("disabled", true);
+                    $("#stop_img_button").attr("disabled", false);
+                }
+            }
+
+
+            function getCurentStatus(){
+                console.log("get current state called");
+                $.post("/",{ get_status: true }, function(data, status){
+                    if (status != "success")
+                    {
+                        console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
+                    }
+                    else
+                    {
+                        if (data.ffmpeg_running == null)
+                        {
+                            //- do nothing for now. something weird happened
+                        }
+                        if (data.ffmpeg_running)
+                        {
+                            console.log("Already streaming. start callbacks");
+                            startTimer();
+                        }
+                        else if(timeout_res != null)
+                        {
+                            console.log("FFMPEG not streaming. stop timers");
+                            stopTimer();
+                        }
+                        if (data.pos) {
+                            console.log("Got current position: "+data.pos);
+                            $('#speed_slider').val( Number(data.pos) - Number(zero_speed_offset) );
+                            $('#speed_value_textbox').val($('#speed_slider').val());
+                        }
+                        if (data.device_num)
+                        {
+                            console.log("Got dev number: "+data.device_num);
+                            $("#device_num").val(data.device_num);
+                        }
+                        setTimeout(getCurentStatus, 1000);
+                    }
+                });
+            }
+
+            function updateSpeed()
+            {
+                var speed = $('#speed_value_textbox').val();
+                console.log("updating servo speed to: "+speed);
+                $.post("/",{ servo_pos: Number(speed) + Number(zero_speed_offset) }, function(data, status){
+                    if (status != "success")
+                    {
+                        console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
+                    }
+                });
+            }
+            
+            function getNewImage()
+            {
+                $.post("/",{ get_new_img: true }, function(data, status){
+                    if (status != "success")
+                    {
+                        console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
+                        timeout_res = null
+                    }
+                    else if (data.status == "success")
+                    {
+                        $("#webcam_image").attr("src", "data:image/jpeg;base64," + data.data);
+                        timeout_res = setTimeout(getNewImage, 100);
+                    }
+                    else
+                    {
+                        sendStopFFMPEG()
+                        console.log("error while getting image: error = "+data.data)
+                    }
+                });
+            }
+
+            function sendStartFFMPEG(dev){
+                stopTimer();
+                console.log("send ffmpeg start");
+                setTimeout(function() {
+                    $.post("/",{ start_ffmpeg: true, device: dev }, function(data, status){
+                        if (status != "success")
+                        {
+                            console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
+                        }
+                        else
+                        {
+                            startTimer()
+                        }
+                    });
+                }, 500);
+            }
+
+            function sendStopFFMPEG(){
+                console.log("send ffmpeg stop");
+                stopTimer()
+                setTimeout( function(){
+                    $.post("/",{ stop_ffmpeg: true }, function(data, status){
+                        if (status != "success")
+                        {
+                            console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
+                        }
+                        else
+                        {
+                        }
+                    });
+                }, 500)
+            }
+
+            //- $(document).on('click', '#but', function(){
+            //-     updateSpeed()
+            //- });
+            $(document).on('input', '#speed_slider', function(){
+                $('#speed_value_textbox').val($('#speed_slider').val());
+                updateSpeed()
+            });
+
+            $(document).on('click', '#stop_button', function(){
+                $('#speed_value_textbox').val(0);
+                //- $('#speed_slider').val(0);
+                updateSpeed()
+            });
+
+            $(document).on('input', '#speed_value_textbox', function(){
+                $('#speed_slider').val($('#speed_value_textbox').val());
+                updateSpeed()
+            });
+
+            $(document).on('click', '#start_img_button', function(){
+                if (timeout_res == null)
+                {
+                    var dev_num_val = $("#device_num").val();
+                    if (!dev_num_val)
+                    {
+                        sendStartFFMPEG(default_device_num);
+                    }
+                    else
+                    {
+                        sendStartFFMPEG(dev_num_val);
+                        console.log("starting: dev id = "+dev_num_val);
+                    }
+                }
+                else
+                {
+                    console.log("please stop streaming before starting again");
+                }
+            });
+
+            $(document).on('click', '#stop_img_button', function(){
+                console.log("stop button clicked");
+                if (timeout_res != null)
+                {
+                    sendStopFFMPEG();
+                }
+            });
+
+            $(document).ready( function(){
+                $("#start_img_button").attr("disabled", false);
+                $("#stop_img_button").attr("disabled", true);
+                $("#device_num").val(default_device_num);
+                getCurentStatus();
+            })
 
     body
-        button(id="but").
-            Set speed
-        input(id="speed")
+        h1.
+            Set the speed of the motor using the slider
+        //- button(id="but").
+        //-     Set speed
+        p.
+            Control slider
+        input(id="speed_slider" type="range" min="-90" max="90" step="1" )
+        p.
+            Value
+        button(id="stop_button").
+            Stop Motor
+        input(id="speed_value_textbox" type="number")
+        br.
+        br.
+        p.
+            Device number
+        input(id="device_num" type="number").
+        br.
+        button(id="start_img_button").
+            Start streaming images
+        button(id="stop_img_button").
+            Stop streaming images
+        br.
+        //- div(id="resizable" class="ui-widget-content")
+        image(id="webcam_image" class="ui-widget-content" width="320" height="240")

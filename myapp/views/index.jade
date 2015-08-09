@@ -52,17 +52,21 @@ html
             function getCurentStatus(){
                 console.log("get current state called");
                 $.post("/",{ get_status: true }, function(data, status){
+                    console.log("Got response with current state")
                     if (status != "success")
                     {
                         console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
                     }
                     else
                     {
+                        console.log(JSON.stringify(data))
+                        console.log(data.pos)
                         if (data.ffmpeg_running == null)
                         {
                             //- do nothing for now. something weird happened
+                            console.log("ffmpeg is null");
                         }
-                        if (data.ffmpeg_running)
+                        else if (data.ffmpeg_running)
                         {
                             console.log("Already streaming. start callbacks");
                             startTimer();
@@ -72,15 +76,25 @@ html
                             console.log("FFMPEG not streaming. stop timers");
                             stopTimer();
                         }
-                        if (data.pos) {
+
+                        if (data.pos == null)
+                        {
+                            console.log("data.pos = null");
+                        }
+                        else {
                             console.log("Got current position: "+data.pos);
                             $('#speed_slider').val( Number(data.pos) - Number(zero_speed_offset) );
                             $('#speed_value_textbox').val($('#speed_slider').val());
                         }
-                        if (data.device_num)
+
+                        if (data.device_num == null)
+                        {
+                            console.log("data.device_num = null");
+                        }
+                        else
                         {
                             console.log("Got dev number: "+data.device_num);
-                            $("#device_num").val(data.device_num);
+                            $("#current_device_num").html(data.device_num);
                         }
                         setTimeout(getCurentStatus, 1000);
                     }
@@ -204,6 +218,7 @@ html
                 $("#start_img_button").attr("disabled", false);
                 $("#stop_img_button").attr("disabled", true);
                 $("#device_num").val(default_device_num);
+                $("#current_device_num").html(default_device_num);
                 getCurentStatus();
             })
 
@@ -222,9 +237,12 @@ html
         input(id="speed_value_textbox" type="number")
         br.
         br.
-        p.
-            Device number
-        input(id="device_num" type="number").
+        p
+            | Current/Last video device number: 
+            span(id="current_device_num")
+        p
+            | New video device number (0 or 1): 
+            input(id="device_num" type="number").
         br.
         button(id="start_img_button").
             Start streaming images

@@ -6,7 +6,7 @@ var fs = require('fs')
 
 
 var last_device_num = 0
-var last_pos = 0
+var last_pos = 94
 var ffmpeg_filename = "/home/shawn/src/remote_control_cat_feeder/myapp/ffmpeg_pics/output.jpg"
 var ffmpeg_spawn = null
 

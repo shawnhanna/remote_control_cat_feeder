@@ -16,9 +16,14 @@ html
 
         script(type = "text/javascript").
             var default_device_num = 0
+            var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+                return v.toString(16);
+            });
 
             var timeout_res = null
             var zero_speed_offset = 94
+            var ffmpeg_rate = 10
 
             $(function() {
                 $( "#webcam_image" ).resizable( { ghost: true
@@ -48,10 +53,80 @@ html
                 }
             }
 
+            var imageTimerOk = true
+            var statusTimerOk = true
+            var currentStatusImage = "/images/none.jpg"
+            function setStatusImage(){
+                if (imageTimerOk && statusTimerOk && (timeout_res == null))
+                {
+                    if ( currentStatusImage != "/images/yellow.jpg")
+                    {
+                        currentStatusImage = "/images/yellow.jpg"
+                        $("#status_img").attr('src',currentStatusImage);
+
+                        console.log("Changing status image to: "+currentStatusImage);
+                    }
+                }
+                else if (imageTimerOk && statusTimerOk)
+                {
+                    if ( currentStatusImage != "/images/green.jpg")
+                    {
+                        currentStatusImage = "/images/green.jpg"
+                        $("#status_img").attr('src',currentStatusImage);
+
+                        console.log("Changing status image to: "+currentStatusImage);
+                    }
+                }
+                else
+                {
+                    if ( currentStatusImage != "/images/red.jpg")
+                    {
+                        currentStatusImage = "/images/red.jpg"
+                        $("#status_img").attr('src',currentStatusImage);
+
+                        console.log("Changing status image to: "+currentStatusImage);
+                    }
+                }
+                console.log("update status image called: image timer ok: " + imageTimerOk + " status timer ok: " +statusTimerOk + " get new image timer active: "+(timeout_res != null));
+            }
+
+            var imageErrorTimer = null
+            function restartImageErrorTimer(){
+                if (imageErrorTimer != null)
+                {
+                    clearTimeout(imageErrorTimer);
+                    imageErrorTimer = null
+                }
+                imageErrorTimer = setTimeout( function(){
+                    console.log("Error: haven't received image within timeout deadline");
+                    imageTimerOk = false
+                    setStatusImage();
+                }, 500);
+                imageTimerOk = true
+                setStatusImage();
+            }
+
+            var statusErrorTimer = null
+            function restartStatusErrorTimer(){
+                if (statusErrorTimer != null)
+                {
+                    clearTimeout(statusErrorTimer);
+                    statusErrorTimer = null
+                }
+                statusErrorTimer = setTimeout( function(){
+                    console.log("Error: haven't received a 'current status' response within timeout deadline");
+                    statusTimerOk = false
+                    setStatusImage();
+                }, 2000);
+                statusTimerOk = true
+                setStatusImage();
+            }
+
 
             function getCurentStatus(){
+                restartStatusErrorTimer();
                 console.log("get current state called");
-                $.post("/",{ get_status: true }, function(data, status){
+                $.post("/",{ get_status: true, uuid: uuid }, function(data, status){
                     console.log("Got response with current state")
                     if (status != "success")
                     {
@@ -87,6 +162,24 @@ html
                             $('#speed_value_textbox').val($('#speed_slider').val());
                         }
 
+                        if (data.distance == null)
+                        {
+                            console.log("data.distance = null");
+                        }
+                        else {
+                            console.log("Got current distance: "+data.distance);
+                            $('#current_distance_text').html( Math.round(data.distance * 100) / 100 );
+                        }
+
+                        if (data.num_users_connected == null)
+                        {
+                            console.log("data.num_users_connected = null");
+                        }
+                        else {
+                            console.log("Got current num_users_connected: "+data.num_users_connected);
+                            $('#num_connected_text').html( data.num_users_connected );
+                        }
+
                         if (data.device_num == null)
                         {
                             console.log("data.device_num = null");
@@ -96,6 +189,7 @@ html
                             console.log("Got dev number: "+data.device_num);
                             $("#current_device_num").html(data.device_num);
                         }
+                        restartStatusErrorTimer();
                         setTimeout(getCurentStatus, 1000);
                     }
                 });
@@ -125,6 +219,7 @@ html
                     {
                         $("#webcam_image").attr("src", "data:image/jpeg;base64," + data.data);
                         timeout_res = setTimeout(getNewImage, 100);
+                        restartImageErrorTimer();
                     }
                     else
                     {
@@ -135,6 +230,7 @@ html
             }
 
             function sendStartFFMPEG(dev){
+                restartImageErrorTimer();
                 stopTimer();
                 console.log("send ffmpeg start");
                 setTimeout(function() {
@@ -153,15 +249,17 @@ html
 
             function sendStopFFMPEG(){
                 console.log("send ffmpeg stop");
+                if (imageErrorTimer != null)
+                {
+                    clearTimeout(imageErrorTimer);
+                    imageErrorTimer = null
+                }
                 stopTimer()
                 setTimeout( function(){
                     $.post("/",{ stop_ffmpeg: true }, function(data, status){
                         if (status != "success")
                         {
                             console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
-                        }
-                        else
-                        {
                         }
                     });
                 }, 500)
@@ -192,13 +290,14 @@ html
                     var dev_num_val = $("#device_num").val();
                     if (!dev_num_val)
                     {
-                        sendStartFFMPEG(default_device_num);
+                        sendStartFFMPEG(default_device_num, ffmpeg_rate);
                     }
                     else
                     {
-                        sendStartFFMPEG(dev_num_val);
+                        sendStartFFMPEG(dev_num_val, ffmpeg_rate);
                         console.log("starting: dev id = "+dev_num_val);
                     }
+                    restartImageErrorTimer();
                 }
                 else
                 {
@@ -222,32 +321,45 @@ html
                 getCurentStatus();
             })
 
+
     body
         h1.
-            Set the speed of the motor using the slider
-        //- button(id="but").
-        //-     Set speed
+            Feed Paisley
+
+        table
+            tr
+                td
+                    p.
+                        Control slider
+                    input(id="speed_slider" type="range" min="-90" max="90" step="1" )
+                    p.
+                        Value
+                    button(id="stop_button").
+                        Stop Motor
+                    input(id="speed_value_textbox" type="number")
+                    br.
+                    br.
+                    p
+                        | Current distance: 
+                        span(id="current_distance_text")
+                    p
+                        | Number of users connected: 
+                        span(id="num_connected_text")
+                    p
+                        | Current/Last video device number: 
+                        span(id="current_device_num")
+                    p
+                        | New video device number (0 or 1): 
+                        input(id="device_num" type="number").
+                    br.
+                    button(id="start_img_button").
+                        Start streaming images
+                    button(id="stop_img_button").
+                        Stop streaming images
+                    br.
+                td
+                    //- div(id="resizable" class="ui-widget-content")
+                    image(id="webcam_image" class="ui-widget-content" width="320" height="240")
         p.
-            Control slider
-        input(id="speed_slider" type="range" min="-90" max="90" step="1" )
-        p.
-            Value
-        button(id="stop_button").
-            Stop Motor
-        input(id="speed_value_textbox" type="number")
-        br.
-        br.
-        p
-            | Current/Last video device number: 
-            span(id="current_device_num")
-        p
-            | New video device number (0 or 1): 
-            input(id="device_num" type="number").
-        br.
-        button(id="start_img_button").
-            Start streaming images
-        button(id="stop_img_button").
-            Stop streaming images
-        br.
-        //- div(id="resizable" class="ui-widget-content")
-        image(id="webcam_image" class="ui-widget-content" width="320" height="240")
+            Status Face: green = all good. yellow = not receiving images, but not expecting to either. red = not recieving images or status message
+        image(id="status_img" width="160px" height="160px" src="/images/red.jpg")

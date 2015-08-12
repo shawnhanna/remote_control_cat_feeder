@@ -130,6 +130,11 @@ function gotUser(uuid)
     }
     connectedUsersTimeouts[uuid] = setTimeout(function(){
         delete connectedUsersTimeouts[uuid]
+        if (Object.keys(connectedUsersTimeouts).length == 0)
+        {
+            // no more users. stop ffmpeg
+            stop_ffmpeg();
+        }
     }, 2100);
 }
 

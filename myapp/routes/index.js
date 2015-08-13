@@ -7,7 +7,7 @@ var url = require('url')
 var five = require("johnny-five");
 
 
-var last_device_num = 0
+var last_device_num = "none"
 var last_pos = 94
 var ffmpeg_filename = "/home/shawn/src/remote_control_cat_feeder/myapp/ffmpeg_pics/output.jpg"
 var ffmpeg_spawn = null
@@ -18,21 +18,43 @@ var distanceAvg = 0
 
 var connectedUsersTimeouts = new Object();
 
+var files = processSlashDev(fs.readdirSync("/dev"))
+var get_files_timer = null
+
+function processSlashDev(files_){
+    newFiles = []
+    var re = /video[0-9]/
+    for (i = 0; i < files_.length; i++) {
+        if (files_[i].match(re))
+            newFiles.push(files_[i])
+    }
+    console.log(newFiles)
+    return newFiles
+}
+
+function getValidVideoIndexes(){
+    files = fs.readdirSync("/dev")
+    files = processSlashDev(files)
+    console.log(files)
+    get_files_timer = setTimeout(getValidVideoIndexes, 10000)
+}
+
+
 function start_ffmpeg(device, rate) {
     console.log("starting ffmpeg (device = "+device+")");
-    ffmpeg_arg_string = '-i /dev/video' +device+' -r '+rate+' -y -update 1 '+ffmpeg_filename;
+    ffmpeg_arg_string = '-i ' +device+' -r '+rate+' -y -update 1 '+ffmpeg_filename;
     console.log("starting: ffmpeg "+ffmpeg_arg_string);
     if (ffmpeg_spawn == null)
     {
         ffmpeg_spawn = spawn('ffmpeg', ffmpeg_arg_string.split(' '));
 
-        ffmpeg_spawn.stdout.on('data', function (data) {
-          console.log('stdout: ' + data);
-        });
+        // ffmpeg_spawn.stdout.on('data', function (data) {
+        //   console.log('stdout: ' + data);
+        // });
 
-        ffmpeg_spawn.stderr.on('data', function (data) {
-          console.log('stderr: ' + data);
-        });
+        // ffmpeg_spawn.stderr.on('data', function (data) {
+        //   console.log('stderr: ' + data);
+        // });
 
         ffmpeg_spawn.on('close', function (code) {
           console.log('child process exited with code ' + code);
@@ -55,6 +77,7 @@ function stop_ffmpeg()
         console.log("Killing ffmpeg");
         ffmpeg_spawn.kill()
         ffmpeg_spawn = null
+        last_device_num = "none"
     }
     else
     {
@@ -122,8 +145,28 @@ five.Board().on("ready", function() {
 
 });
 
+function no_more_users(){
+    if (get_files_timer != null)
+    {
+        clearTimeout(get_files_timer)
+        get_files_timer = null
+    }
+
+    stop_ffmpeg();
+}
+
+function first_user_connected(){
+    if (get_files_timer == null)
+        getValidVideoIndexes();
+}
+
 function gotUser(uuid)
 {
+    if (Object.keys(connectedUsersTimeouts).length == 0)
+    {
+        // no more users. stop things that aren't needed
+        first_user_connected()
+    }
     if (uuid in connectedUsersTimeouts)
     {
         clearTimeout(connectedUsersTimeouts[uuid])
@@ -132,8 +175,8 @@ function gotUser(uuid)
         delete connectedUsersTimeouts[uuid]
         if (Object.keys(connectedUsersTimeouts).length == 0)
         {
-            // no more users. stop ffmpeg
-            stop_ffmpeg();
+            // no more users. stop things that aren't needed
+            no_more_users();
         }
     }, 2100);
 }
@@ -267,7 +310,7 @@ router.post('/', function(req, res, next) {
         gotUser(uuid);
         console.log("Got status request from: "+uuid)
         var is_running = (ffmpeg_spawn != null);
-        dict = { status: "success", data: "", device_num: last_device_num, ffmpeg_running: is_running, pos: last_pos, distance: distanceAvg, num_users_connected: Object.keys(connectedUsersTimeouts).length };
+        dict = { status: "success", data: "", current_video_device: last_device_num, ffmpeg_running: is_running, pos: last_pos, distance: distanceAvg, num_users_connected: Object.keys(connectedUsersTimeouts).length, available_video_devices: files };
         var json = JSON.stringify(dict)
         console.log(json);
         // res.write(json);

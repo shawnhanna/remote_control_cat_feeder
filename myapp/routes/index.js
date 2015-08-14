@@ -6,18 +6,22 @@ var fs = require('fs')
 var url = require('url')
 var five = require("johnny-five");
 
-
+// ffmpeg stuff
 var last_device_num = "none"
 var last_pos = 94
 var ffmpeg_filename = "/home/shawn/src/remote_control_cat_feeder/myapp/ffmpeg_pics/output.jpg"
 var ffmpeg_spawn = null
 
+// johnny five stuff
+var board = null
 var servo = null
 var proximity = null
 var distanceAvg = 0
 
+// users and other vars
 var connectedUsersTimeouts = new Object();
-
+var usersList = []
+var messagesList = []
 var files = processSlashDev(fs.readdirSync("/dev"))
 var get_files_timer = null
 
@@ -28,14 +32,18 @@ function processSlashDev(files_){
         if (files_[i].match(re))
             newFiles.push(files_[i])
     }
-    console.log(newFiles)
+    // console.log(newFiles)
     return newFiles
 }
 
 function getValidVideoIndexes(){
     files = fs.readdirSync("/dev")
     files = processSlashDev(files)
-    console.log(files)
+    console.log("valid '/dev/video' drivers: "+files)
+    if (get_files_timer != null)
+    {
+        clearTimeout(get_files_timer)
+    }
     get_files_timer = setTimeout(getValidVideoIndexes, 10000)
 }
 
@@ -52,13 +60,14 @@ function start_ffmpeg(device, rate) {
         //   console.log('stdout: ' + data);
         // });
 
-        // ffmpeg_spawn.stderr.on('data', function (data) {
-        //   console.log('stderr: ' + data);
-        // });
+        ffmpeg_spawn.stderr.on('data', function (data) {
+          console.log('stderr: ' + data);
+        });
 
         ffmpeg_spawn.on('close', function (code) {
-          console.log('child process exited with code ' + code);
-          ffmpeg_spawn = null
+            console.log('child process exited with code ' + code);
+            ffmpeg_spawn = null
+            last_device_num = "none"
         });
     }
     else
@@ -77,73 +86,95 @@ function stop_ffmpeg()
         console.log("Killing ffmpeg");
         ffmpeg_spawn.kill()
         ffmpeg_spawn = null
-        last_device_num = "none"
     }
     else
     {
         console.log("got call to 'stop' ffmpeg, but it is not running")
     }
+    last_device_num = "none"
 }
 
-five.Board().on("ready", function() {
-    servo = new five.Servo(10);
+// function closeAruinoBoard()
+// {
+//     board = null
+//     servo = null
+//     proximity = null
+// }
 
-    proximity = new five.Proximity({
-        controller: "HCSR04",
-        pin: 7
-    });
+function initArduinoBoard()
+{
+    console.log("Starting up arduino");
+    // try{
+        board = new five.Board();
+        board.on("ready", function(error) {
+            if (error)
+            {
+                console.log("j5 error: "+error)
+                return
+            }
+            servo = new five.Servo(10);
 
-    proximity.on("data", function() {
-        distanceAvg = distanceAvg * 0.8 + this.cm * 0.2
-    });
+            // proximity = new five.Proximity({
+            //     controller: "HCSR04",
+            //     pin: 7
+            // });
 
-    // Creates a piezo object and defines the pin to be used for the signal
-/*    var piezo = new five.Piezo(3);
+            // proximity.on("data", function() {
+            //     distanceAvg = distanceAvg * 0.8 + this.cm * 0.2
+            // });
 
-    // Injects the piezo into the repl
-    five.Board().repl.inject({
-        piezo: piezo
-    });
+            // Creates a piezo object and defines the pin to be used for the signal
+        /*    var piezo = new five.Piezo(3);
 
-    // Plays a song
-    piezo.play({
-        // song is composed by an array of pairs of notes and beats
-        // The first argument is the note (null means "no note")
-        // The second argument is the length of time (beat) of the note (or non-note)
-        song: [
-            ["C4", 1 / 4],
-            ["D4", 1 / 4],
-            ["F4", 1 / 4],
-            ["D4", 1 / 4],
-            ["A4", 1 / 4],
-            [null, 1 / 4],
-            ["A4", 1],
-            ["G4", 1],
-            [null, 1 / 2],
-            ["C4", 1 / 4],
-            ["D4", 1 / 4],
-            ["F4", 1 / 4],
-            ["D4", 1 / 4],
-            ["G4", 1 / 4],
-            [null, 1 / 4],
-            ["G4", 1],
-            ["F4", 1],
-            [null, 1 / 2]
-        ],
-        tempo: 30
-    });
+            // Injects the piezo into the repl
+            board.repl.inject({
+                piezo: piezo
+            });
 
-    // Plays the same song with a string representation
-    piezo.play({
-        // song is composed by a string of notes
-        // a default beat is set, and the default octave is used
-        // any invalid note is read as "no note"
-        song: "C D F D A - A A A A G G G G - - C D F D G - G G G G F F F F - -",
-        beats: 1 / 4,
-        tempo: 100
-    });*/
+            // Plays a song
+            piezo.play({
+                // song is composed by an array of pairs of notes and beats
+                // The first argument is the note (null means "no note")
+                // The second argument is the length of time (beat) of the note (or non-note)
+                song: [
+                    ["C4", 1 / 4],
+                    ["D4", 1 / 4],
+                    ["F4", 1 / 4],
+                    ["D4", 1 / 4],
+                    ["A4", 1 / 4],
+                    [null, 1 / 4],
+                    ["A4", 1],
+                    ["G4", 1],
+                    [null, 1 / 2],
+                    ["C4", 1 / 4],
+                    ["D4", 1 / 4],
+                    ["F4", 1 / 4],
+                    ["D4", 1 / 4],
+                    ["G4", 1 / 4],
+                    [null, 1 / 4],
+                    ["G4", 1],
+                    ["F4", 1],
+                    [null, 1 / 2]
+                ],
+                tempo: 30
+            });
 
-});
+            // Plays the same song with a string representation
+            piezo.play({
+                // song is composed by a string of notes
+                // a default beat is set, and the default octave is used
+                // any invalid note is read as "no note"
+                song: "C D F D A - A A A A G G G G - - C D F D G - G G G G F F F F - -",
+                beats: 1 / 4,
+                tempo: 100
+            });*/
+        });
+    // }
+    // catch(e)
+    // {
+    //     console.log("Error opening arduino: "+e);
+    // }
+}
 
 function no_more_users(){
     if (get_files_timer != null)
@@ -151,13 +182,16 @@ function no_more_users(){
         clearTimeout(get_files_timer)
         get_files_timer = null
     }
-
+    // closeAruinoBoard()
     stop_ffmpeg();
 }
 
+initArduinoBoard();
 function first_user_connected(){
     if (get_files_timer == null)
+    {
         getValidVideoIndexes();
+    }
 }
 
 function gotUser(uuid)
@@ -171,7 +205,7 @@ function gotUser(uuid)
     {
         clearTimeout(connectedUsersTimeouts[uuid])
     }
-    connectedUsersTimeouts[uuid] = setTimeout(function(){
+    connectedUsersTimeouts[uuid] = setTimeout( function(){
         delete connectedUsersTimeouts[uuid]
         if (Object.keys(connectedUsersTimeouts).length == 0)
         {
@@ -286,7 +320,15 @@ router.post('/', function(req, res, next) {
         {
             console.log("ERROR: no device ID specified for starting ffmpeg")
         }
-        dict = { status: "success", data: "success" };
+
+        if (ffmpeg_spawn != null)
+        {
+            dict = { status: "success", data: "success" };
+        }
+        else
+        {
+            dict = { status: "failure", data: "couldn't start video on device: "+req.body.device}
+        }
         var json = JSON.stringify(dict)
         console.log(json)
         // res.write(json);
@@ -310,10 +352,28 @@ router.post('/', function(req, res, next) {
         gotUser(uuid);
         console.log("Got status request from: "+uuid)
         var is_running = (ffmpeg_spawn != null);
-        dict = { status: "success", data: "", current_video_device: last_device_num, ffmpeg_running: is_running, pos: last_pos, distance: distanceAvg, num_users_connected: Object.keys(connectedUsersTimeouts).length, available_video_devices: files };
+        dict = { status: "success", data: "", messagesList: messagesList, usersList: usersList, current_video_device: last_device_num, ffmpeg_running: is_running, pos: last_pos, distance: distanceAvg, num_users_connected: Object.keys(connectedUsersTimeouts).length, available_video_devices: files };
         var json = JSON.stringify(dict)
         console.log(json);
         // res.write(json);
+        res.json(dict);
+        return
+    }
+    else if (req.body.message != null && req.body.username != null)
+    {
+        console.log("got a new message from user ("+req.body.username+"): "+req.body.message)
+        usersList.push(req.body.username)
+        messagesList.push(req.body.message)
+        dict = { status: "success", data: "success" };
+        res.json(dict);
+        return
+    }
+    else if (req.body.clear_chat)
+    {
+        console.log("got a new message from user ("+req.body.username+"): "+req.body.message)
+        usersList = []
+        messagesList = []
+        dict = { status: "success", data: "success" };
         res.json(dict);
         return
     }

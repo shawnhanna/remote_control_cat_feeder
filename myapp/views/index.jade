@@ -24,7 +24,7 @@ html
 
             var timeout_res = null
             var zero_speed_offset = 94
-            var ffmpeg_rate = 10
+            var ffmpeg_rate = 4
 
             $(function() {
                 $( "#webcam_image" ).resizable( { ghost: true
@@ -43,12 +43,12 @@ html
             function startTimer() {
                 if (timeout_res)
                 {
-                    console.log("Starting get image timer when they are already started")
+                    //console.log("Starting get image timer when they are already started")
                 }
                 else
                 {
-                    console.log("starting timer");
-                    timeout_res = setTimeout(getNewImage, 500);
+                    console.log("starting get new image timer");
+                    timeout_res = setTimeout(getNewImage, 2000);
                     $("#start_img_button").attr("disabled", true);
                     $("#stop_img_button").attr("disabled", false);
                 }
@@ -102,7 +102,7 @@ html
                     console.log("Error: haven't received image within timeout deadline");
                     imageTimerOk = false
                     setStatusImage();
-                }, 500);
+                }, 5000);
                 imageTimerOk = true
                 setStatusImage();
             }
@@ -118,7 +118,7 @@ html
                     console.log("Error: haven't received a 'current status' response within timeout deadline");
                     statusTimerOk = false
                     setStatusImage();
-                }, 2000);
+                }, 3000);
                 statusTimerOk = true
                 setStatusImage();
             }
@@ -128,7 +128,7 @@ html
                 for(var i=0; i<usersList.length; i++)
                 {
                     var toinsert = usersList[i] +" : " +messagesList[i]
-                    console.log("inserting: "+toinsert)
+                    //console.log("inserting: "+toinsert)
                     $("<p>"+toinsert+"</p>").appendTo("#message_div")
                     //- $('#message_div').html($('#message_div').html()+"<p>"+toinsert+"</p><br>")
                 }
@@ -137,17 +137,17 @@ html
 
             function getCurentStatus(){
                 restartStatusErrorTimer();
-                console.log("get current state called");
+                //console.log("get current state called");
                 $.post("/",{ get_status: true, uuid: uuid }, function(data, status){
-                    console.log("Got response with current state")
+                    //console.log("Got response with current state")
                     if (status != "success")
                     {
                         console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
                     }
                     else
                     {
-                        console.log(JSON.stringify(data))
-                        console.log(data.pos)
+                        console.log('current state: '+JSON.stringify(data))
+                        //console.log(data.pos)
                         if (data.ffmpeg_running == null)
                         {
                             //- do nothing for now. something weird happened
@@ -155,12 +155,12 @@ html
                         }
                         else if (data.ffmpeg_running)
                         {
-                            console.log("Already streaming. start callbacks");
+                            //console.log("Already streaming. start callbacks");
                             startTimer();
                         }
                         else if(timeout_res != null)
                         {
-                            console.log("FFMPEG not streaming. stop timers");
+                            //console.log("FFMPEG not streaming. stop timers");
                             stopTimer();
                         }
 
@@ -169,7 +169,7 @@ html
                             console.log("data.pos = null");
                         }
                         else {
-                            console.log("Got current position: "+data.pos);
+                            //console.log("Got current position: "+data.pos);
                             $('#speed_slider').val( Number(data.pos) - Number(zero_speed_offset) );
                             $('#speed_value_textbox').val($('#speed_slider').val());
                         }
@@ -179,7 +179,7 @@ html
                             console.log("data.distance = null");
                         }
                         else {
-                            console.log("Got current distance: "+data.distance);
+                            //console.log("Got current distance: "+data.distance);
                             $('#current_distance_text').html( Math.round(data.distance * 100) / 100 );
                         }
 
@@ -188,7 +188,7 @@ html
                             console.log("data.num_users_connected = null");
                         }
                         else {
-                            console.log("Got current num_users_connected: "+data.num_users_connected);
+                            //console.log("Got current num_users_connected: "+data.num_users_connected);
                             $('#num_connected_text').html( data.num_users_connected );
                         }
 
@@ -209,7 +209,7 @@ html
                                 for (var i=0; i<data.available_video_devices.length; i++)
                                 {
                                     var devName="/dev/"+data.available_video_devices[i];
-                                    console.log(devName)
+                                    //console.log('v4l option: '+devName)
                                     $("input[name=dev_video_num_radio_group][value=\""+devName+"\"]").css('display', 'inline');
                                     $("p:contains(\""+devName+"\")").css('display', 'inline-block');
                                 }
@@ -223,7 +223,7 @@ html
                                     $("#start_img_button").attr("disabled", true);
                                 }
 
-                                console.log("Got dev number: "+data.current_video_device);
+                                //console.log("Got dev number: "+data.current_video_device);
                                 //- $("input[name=dev_video_num_radio_group][value=\""+data.current_video_device+"\"]").attr({ 'checked': true });
 
                                 $("#device_radio_boxes p:contains(\""+data.current_video_device+"\")").css({ 'font-weight': "bold" });
@@ -267,7 +267,7 @@ html
                     else if (data.status == "success")
                     {
                         $("#webcam_image").attr("src", "data:image/jpeg;base64," + data.data);
-                        timeout_res = setTimeout(getNewImage, 100);
+                        timeout_res = setTimeout(getNewImage, 300);
                         restartImageErrorTimer();
                     }
                     else
@@ -290,6 +290,7 @@ html
                         }
                         else
                         {
+                            console.log("Successfully started ffmpeg?")
                             startTimer()
                         }
                     });

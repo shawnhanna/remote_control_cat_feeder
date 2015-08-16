@@ -3,13 +3,13 @@ var router = express.Router();
 var spawn = require('child_process').spawn
 var fs_ext = require('fs-ext');
 var fs = require('fs')
-var url = require('url')
+//var url = require('url')
 var five = require("johnny-five");
 
 // ffmpeg stuff
 var last_device_num = "none"
 var last_pos = 94
-var ffmpeg_filename = "/home/shawn/src/remote_control_cat_feeder/myapp/ffmpeg_pics/output.jpg"
+var ffmpeg_filename = "/home/pi/src/remote_control_cat_feeder/myapp/public/images/output.jpg"
 var ffmpeg_spawn = null
 
 // johnny five stuff
@@ -47,20 +47,30 @@ function getValidVideoIndexes(){
     get_files_timer = setTimeout(getValidVideoIndexes, 10000)
 }
 
-
+var ffmpeg_data_timeout = null
 function start_ffmpeg(device, rate) {
     console.log("starting ffmpeg (device = "+device+")");
-    ffmpeg_arg_string = '-i ' +device+' -r '+rate+' -y -update 1 '+ffmpeg_filename;
+    ffmpeg_arg_string = '-f v4l2 -i ' +device+' -r '+rate+' -y -update 1 '+ffmpeg_filename;
     console.log("starting: ffmpeg "+ffmpeg_arg_string);
     if (ffmpeg_spawn == null)
     {
-        ffmpeg_spawn = spawn('ffmpeg', ffmpeg_arg_string.split(' '));
+        ffmpeg_arg_string =  '-f v4l2 -i /dev/video0 -r 1 -y -update 1 ' + ffmpeg_filename
+
+        ffmpeg_spawn = spawn('/home/pi/ffmpeg', ffmpeg_arg_string.split(' '));
 
         // ffmpeg_spawn.stdout.on('data', function (data) {
         //   console.log('stdout: ' + data);
         // });
 
         ffmpeg_spawn.stderr.on('data', function (data) {
+          if (ffmpeg_data_timeout != null)
+          {
+              clearTimeout(ffmpeg_data_timeout)
+          }
+          ffmpeg_data_timeout = setTimeout( function(){
+              console.log("ERROR: No data coming from ffmpeg. Stop it?");
+              stop_ffmpeg();
+          }, 3000)
           console.log('stderr: ' + data);
         });
 
@@ -265,6 +275,7 @@ router.post('/', function(req, res, next) {
         if (ffmpeg_spawn == null)
         {
             //ffmpeg not running
+            console.log("ffmpeg not running")
             
             dict = { status: "faliure", data: "ffmpeg not running/failed to start" };
             var json = JSON.stringify(dict)
@@ -279,6 +290,7 @@ router.post('/', function(req, res, next) {
             fs_ext.flock(fd, 'ex', function (err) {
                 if (err) {
                     console.log("Couldn't lock file");
+                    res.json( { status: "failure", data: " Couldn't lock file" } )
                     return
                 }
                 // file is locked
@@ -292,6 +304,8 @@ router.post('/', function(req, res, next) {
                 fs_ext.flock(fd, 'un', function(err) {
                     if (err) {
                         console.log("Couldn't unlock file", counter);
+                        dict.status = failure
+                        dict.data = "couldn't unlock file"
                     }
                     fs_ext.closeSync(fd);
                 })

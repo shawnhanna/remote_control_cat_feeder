@@ -19,6 +19,8 @@
     "express": "~4.13.1",
     "jade": "~1.11.0",
     "morgan": "~1.6.1",
-    "serve-favicon": "~2.3.0"
+    "serve-favicon": "~2.3.0",
+    "fs-ext": "~0.4.6",
+    "johnny-five": "~0.8.85"
   }
 }

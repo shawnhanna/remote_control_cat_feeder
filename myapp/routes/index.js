@@ -6,6 +6,12 @@ var fs = require('fs')
 //var url = require('url')
 var five = require("johnny-five");
 
+/* GET home page. */
+router.get('/', function(req, res, next) {
+    res.render('index', { title: 'Cats Cats Cats' });
+    return
+});
+
 // ffmpeg stuff
 var last_device_num = "none"
 var last_pos = 94
@@ -49,6 +55,8 @@ function getValidVideoIndexes(){
 
 var ffmpeg_data_timeout = null
 function start_ffmpeg(device, rate) {
+    spawn('killall', ["ffmpeg"])
+  setTimeout(function(){
     console.log("starting ffmpeg (device = "+device+")");
     ffmpeg_arg_string = '-f v4l2 -i ' +device+' -r '+rate+' -y -update 1 '+ffmpeg_filename;
     console.log("starting: ffmpeg "+ffmpeg_arg_string);
@@ -87,6 +95,7 @@ function start_ffmpeg(device, rate) {
         ffmpeg_spawn = spawn('ffmpeg', ffmpeg_arg_string.split(' '));
     }
     last_device_num = device
+  }, 1000)
 }
 
 function stop_ffmpeg()
@@ -101,6 +110,7 @@ function stop_ffmpeg()
     {
         console.log("got call to 'stop' ffmpeg, but it is not running")
     }
+    spawn('killall', ["ffmpeg"])
     last_device_num = "none"
 }
 
@@ -224,11 +234,6 @@ function gotUser(uuid)
         }
     }, 2100);
 }
-
-/* GET home page. */
-router.get('/', function(req, res, next) {
-    res.render('index', { title: 'Cats Cats Cats' });
-});
 
 router.post('/', function(req, res, next) {
     console.log("Got post: "+JSON.stringify(req.body));

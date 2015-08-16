@@ -364,7 +364,7 @@ router.post('/', function(req, res, next) {
         console.log("got a new message from user ("+req.body.username+"): "+req.body.message)
         usersList.push(req.body.username)
         messagesList.push(req.body.message)
-        dict = { status: "success", data: "success" };
+        dict = { status: "success", data: "success", messagesList: messagesList, usersList: usersList };
         res.json(dict);
         return
     }

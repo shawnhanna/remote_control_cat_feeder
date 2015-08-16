@@ -15,6 +15,7 @@ html
             .ui-resizable-helper { border: 2px dotted #00F; }
 
         script(type = "text/javascript").
+
             var default_device_num = "none"
             var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
                 var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
@@ -122,6 +123,17 @@ html
                 setStatusImage();
             }
 
+            function processChat(usersList, messagesList){
+                $("#message_div").empty();
+                for(var i=0; i<usersList.length; i++)
+                {
+                    var toinsert = usersList[i] +" : " +messagesList[i]
+                    console.log("inserting: "+toinsert)
+                    $("<p>"+toinsert+"</p>").appendTo("#message_div")
+                    //- $('#message_div').html($('#message_div').html()+"<p>"+toinsert+"</p><br>")
+                }
+            }
+
 
             function getCurentStatus(){
                 restartStatusErrorTimer();
@@ -223,14 +235,7 @@ html
 
                         if (data.usersList.length == data.messagesList.length)
                         {
-                            $("#message_div").empty();
-                            for(var i=0; i<data.usersList.length; i++)
-                            {
-                                var toinsert = data.usersList[i] +" : " +data.messagesList[i]
-                                console.log("inserting: "+toinsert)
-                                $("<p>"+toinsert+"</p>").appendTo("#message_div")
-                                //- $('#message_div').html($('#message_div').html()+"<p>"+toinsert+"</p><br>")
-                            }
+                            processChat(data.usersList, data.messagesList)
                         }
 
                         restartStatusErrorTimer();
@@ -309,61 +314,37 @@ html
                 }, 500)
             }
 
-            //- $(document).on('click', '#but', function(){
-            //-     updateSpeed()
-            //- });
-            $(document).on('input', '#speed_slider', function(){
-                $('#speed_value_textbox').val($('#speed_slider').val());
-                updateSpeed()
-            });
 
-            $(document).on('click', '#stop_button', function(){
-                $('#speed_value_textbox').val(0);
-                //- $('#speed_slider').val(0);
-                updateSpeed()
-            });
-
-            $(document).on('input', '#speed_value_textbox', function(){
-                $('#speed_slider').val($('#speed_value_textbox').val());
-                updateSpeed()
-            });
-
-            $(document).on('click', '#start_img_button', function(){
-                if (timeout_res == null)
-                {
-                    //- var dev_num_val = $("#device_num").val();
-                    var dev_num_val = $('input[name="dev_video_num_radio_group"]:checked').val();
-
-                    if (!dev_num_val)
-                    {
-                        sendStartFFMPEG(default_device_num, ffmpeg_rate);
-                    }
-                    else
-                    {
-                        sendStartFFMPEG(dev_num_val, ffmpeg_rate);
-                        console.log("starting: dev id = "+dev_num_val);
-                    }
-                    restartImageErrorTimer();
-                }
-                else
-                {
-                    console.log("please stop streaming before starting again");
-                }
-            });
-
-            $(document).on('click', '#stop_img_button', function(){
-                console.log("stop button clicked");
-                if (timeout_res != null)
-                {
-                    sendStopFFMPEG();
-                }
-            });
-
-            $(document).on('click', '#submit_message', function(){
-                var username_ = $('#username_textbox').val()
-                var message_ = $('#new_message_textbox').val()
+            var submitMessageTimeout = null
+            function submitMessage(){
+                var username_ = $('#username_textbox').val().trim()
+                var message_ = $('#new_message_textbox').val().trim()
                 console.log("sending message:" + message_);
+
+                if (username_.length == 0)
+                {
+                    alert("missing username")
+                    return false
+                }
+                if ( message_.length == 0)
+                {
+                    alert("missing message text")
+                    return false
+                }
+
+
+                if (submitMessageTimeout != null)
+                {
+                    clearTimeout(submitMessageTimeout)
+                    submitMessageTimeout = null
+                }
+
                 $('#submit_message').attr( "disabled", true )
+
+                submitMessageTimeout = setTimeout(function(){
+                    $('#submit_message').attr( "disabled", false )
+                    alert("Failed to send message!")
+                }, 2000)
 
                 $.post("/",{ username: username_, message: message_ }, function(data, status){
                     if (status != "success")
@@ -374,29 +355,20 @@ html
                     {
                         console.log("Sent successfully");
                         $('#new_message_textbox').val("")
+
+                        processChat(data.usersList, data.messagesList)
+                    }
+
+                    if (submitMessageTimeout != null)
+                    {
+                        clearTimeout(submitMessageTimeout)
+                        submitMessageTimeout = null
                     }
                     $('#submit_message').attr( "disabled", false )
                 });
-            });
+                return true
+            }
 
-            $(document).on('click', '#clear_chat_button', function(){
-                var res = confirm("Are you sure you want to clear it?")
-                if (res == true)
-                {
-                    console.log("clearing chat");
-
-                    $.post("/",{ clear_chat: true }, function(data, status){
-                        if (status != "success")
-                        {
-                            console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
-                        }
-                        else
-                        {
-                            console.log("cleared chat successfully");
-                        }
-                    });
-                }
-            });
 
             $(document).ready( function(){
                 $("#start_img_button").attr("disabled", false);
@@ -410,6 +382,110 @@ html
                     $("#device_radio_boxes").append("<p>"+vidName+"</p>")
                     $("#device_radio_boxes").append('<input type="radio" name="dev_video_num_radio_group" value="'+vidName+'"></input>')
                 }
+
+                $('#new_message_textbox').keypress( function (e) {
+                  if (e.which == 13) {
+                    submitMessage()
+                    return false;
+                  }
+                });
+
+                $('#username_textbox').keypress( function (e) {
+                  if (e.which == 13) {
+                    submitMessage()
+                    return false;
+                  }
+                });
+
+                $('#clear_chat_button').click(function(){
+                    var res = confirm("Are you sure you want to clear it?")
+                    if (res == true)
+                    {
+                        console.log("clearing chat");
+
+                        $.post("/",{ clear_chat: true }, function(data, status){
+                            if (status != "success")
+                            {
+                                console.log("Error: Data: " + JSON.stringify(data) + " status: "+status);
+                            }
+                            else
+                            {
+                                console.log("cleared chat successfully");
+                            }
+                        });
+                    }
+                })
+
+                $('#submit_message').click(function(){
+                    submitMessage()
+                })
+
+                $('#stop_img_button').click(function(){
+                    console.log("stop button clicked");
+                    $('#webcam_image').attr("src", "/images/paisley.jpg")
+
+                    if (timeout_res != null)
+                    {
+                        sendStopFFMPEG();
+                    }
+
+                })
+
+                $('#start_img_button').click(function(){
+                    if (timeout_res == null)
+                    {
+                        //- var dev_num_val = $("#device_num").val();
+                        var dev_num_val = $('input[name="dev_video_num_radio_group"]:checked').val();
+
+                        if (!dev_num_val)
+                        {
+                            sendStartFFMPEG(default_device_num, ffmpeg_rate);
+                        }
+                        else
+                        {
+                            sendStartFFMPEG(dev_num_val, ffmpeg_rate);
+                            console.log("starting: dev id = "+dev_num_val);
+                        }
+                        restartImageErrorTimer();
+                    }
+                    else
+                    {
+                        console.log("please stop streaming before starting again");
+                    }
+                });
+
+                //- $(document).on('click', '#but', function(){
+                //-     updateSpeed()
+                //- });
+                $('#speed_slider').on('input', function(){
+                    $('#speed_value_textbox').val($('#speed_slider').val());
+                    updateSpeed()
+                });
+
+                $('#speed_value_textbox').on('input', function(){
+                    $('#speed_slider').val($('#speed_value_textbox').val());
+                    updateSpeed()
+                });
+
+                $('#stop_button').click(function(){
+                    $('#speed_value_textbox').val(0);
+                    //- $('#speed_slider').val(0);
+                    updateSpeed()
+                });
+
+                //SET THE RTSP STREAM ADDRESS HERE
+                //- var address = "rtp://127.0.0.1:1234";
+
+                //- var output = '<object width="640" height="480" id="qt" classid="clsid:02BF25D5-8C17-4B23-BC80-D3488ABDDC6B" codebase="http://www.apple.com/qtactivex/qtplugin.cab">';
+                //- output += '<param name="src" value="'+address+'">';
+                //- output += '<param name="autoplay" value="true">';
+                //- output += '<param name="controller" value="false">';
+                //- output += '<embed id="plejer" name="plejer" src="/poster.mov" bgcolor="000000" width="640" height="480" scale="ASPECT" qtsrc="'+address+'"  kioskmode="true" showlogo=false" autoplay="true" controller="false" pluginspage="http://www.apple.com/quicktime/download/">';
+                //- output += '</embed></object>';
+
+                //- document.getElementById("the_div_that_will_hold_the_player_object").innerHTML = output;
+                
+
             })
 
     body
@@ -418,7 +494,7 @@ html
 
         table
             tr
-                td
+                td(valign="top")
                     h3 Motor Control
                     p.
                         Control slider
@@ -430,28 +506,13 @@ html
                     input(id="speed_value_textbox" type="number")
                     br.
                     br.
-                    p
-                        | Current distance: 
-                        span(id="current_distance_text")
+                    //- p
+                    //-     | Current distance: 
+                    //-     span(id="current_distance_text")
                     p
                         | Number of users connected: 
                         span(id="num_connected_text")
                     div(id="device_radio_boxes")
-                        //- p(hidden="true")
-                        //-     | /dev/video0:
-                        //-     input(type="radio" name="dev_video_num_radio_group" hidden="true" value="/dev/video0")
-                        //- p
-                        //-     | /dev/video1: 
-                        //-     input(type="radio" name="dev_video_num_radio_group" value="/dev/video1")
-                        //- p
-                        //-     | /dev/video2: 
-                        //-     input(type="radio" name="dev_video_num_radio_group" value="/dev/video2")
-                        //- p
-                        //-     | /dev/video3: 
-                        //-     input(type="radio" name="dev_video_num_radio_group" value="/dev/video3")
-                        //- p
-                        //-     | /dev/video4: 
-                        //-     input(type="radio" name="dev_video_num_radio_group" value="/dev/video4")
                     p
                         | Current video device number: 
                         span(id="current_device_num")
@@ -461,15 +522,17 @@ html
                     button(id="stop_img_button").
                         Stop streaming images
                     br.
-                td
+                td(valign="top")
                     h3
                         | Image stream!
                     //- div(id="resizable" class="ui-widget-content")
-                    image(id="webcam_image" class="ui-widget-content" width="320" height="240")
+                    image(id="webcam_image" class="ui-widget-content" width="320" height="240" src="/images/paisley.jpg")
                     p.
-                        Status Face: green = all good. yellow = not receiving images, but not expecting to either. red = not recieving images or status message
+                        Status Face: green = all good<br>
+                        yellow = not receiving images, but not expecting to either<br>
+                        red = not recieving images or status message
                     image(id="status_img" width="160px" height="160px" src="/images/red.jpg")
-                td
+                td(valign="top")
                     h3
                         | super chat!
                     p
@@ -483,3 +546,14 @@ html
                     button(id="clear_chat_button").
                         clear
                     div(id="message_div")
+        //- div(id="the_div_that_will_hold_the_player_object")
+
+        //- OBJECT(classid="clsid:9BE31822-FDAD-461B-AD51-BE1D1C159921" codebase="http://downloads.videolan.org/pub/videolan/vlc/latest/win32/axvlc.cab" width="640" height="480" id="vlc" events="True")
+        //-     param(name="Src" value="rtsp://127.0.0.1:1234" )
+        //-     param(name="ShowDisplay" value="True" )
+        //-     param(name="AutoLoop" value="False" )
+        //-     param( name="AutoPlay" value="True" )
+        //-     embed(id="vlcEmb"  type="application/x-google-vlc-plugin" version="VideoLAN.VLCPlugin.2" autoplay="yes" loop="no" width="640" height="480" target="rtsp://cameraipaddress")
+        //- | <video src="rtp://127.0.0.1:1234">
+        //- | Your browser does not support the VIDEO tag and/or RTP streams.
+        //- | </video>

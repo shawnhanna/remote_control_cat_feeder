@@ -7,7 +7,7 @@ var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
 
 var timeout_res = null
 var zero_speed_offset = 94
-var ffmpeg_rate = 4
+var ffmpeg_rate = 1
 
 $(function() {
     $( "#webcam_image" ).resizable( { ghost: true

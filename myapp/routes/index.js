@@ -257,13 +257,13 @@ router.post('/', function(req, res, next) {
             console.log("setting servo to pos: "+pos);
             last_pos = pos
             servo.to(+pos);
-            console.log('got request. position = '+pos);
             // res.write('pos = '+pos);
 
             dict = { status: "success", data: pos };
             var json = JSON.stringify(dict)
             // res.write(json);
             res.json(dict)
+            return
         }
     }
     else if (req.body.get_new_img)

@@ -29,7 +29,7 @@ html
                     input(id="speed_slider" type="range" min="-90" max="90" step="1" )
                     p.
                         Value
-                    button(id="stop_button").
+                    button#stop_button
                         Stop Motor
                     input(id="speed_value_textbox" type="number")
                     br.
@@ -39,15 +39,15 @@ html
                     //-     span(id="current_distance_text")
                     p
                         | Number of users connected: 
-                        span(id="num_connected_text")
-                    div(id="device_radio_boxes")
+                        span#num_connected_text
+                    div#device_radio_boxes
                     p
                         | Current video device number: 
-                        span(id="current_device_num")
+                        span#current_device_num
                     br.
-                    button(id="start_img_button").
+                    button#start_img_button
                         Start streaming images
-                    button(id="stop_img_button").
+                    button#stop_img_button
                         Stop streaming images
                     br.
                 td(valign="top")
@@ -65,12 +65,12 @@ html
                         | super chat!
                     p
                         | name: 
-                    input(id="username_textbox")
+                    input#username_textbox
                     p
                         | text
-                    input(id="new_message_textbox")
-                    button(id="submit_message").
+                    input#new_message_textbox
+                    button#submit_message
                         submit
-                    button(id="clear_chat_button").
+                    button#clear_chat_button
                         clear
-                    div(id="message_div")
+                    div#message_div
